@@ -613,12 +613,18 @@ function gerarNotificacoes() {
 }
 
 function diasAteAniver(nasc) {
-  const hoje = new Date();
-  const [ano, mes, dia] = nasc.split('-').map(Number);
-  let aniver = new Date(hoje.getFullYear(), mes-1, dia);
-  if(aniver < hoje) aniver = new Date(hoje.getFullYear()+1, mes-1, dia);
-  const diff = Math.round((aniver - hoje) / (1000*60*60*24));
-  return diff;
+  if(!nasc) return null;
+  try {
+    const [ano, mes, dia] = nasc.split('-').map(Number);
+    const agora = new Date();
+    const hojeZ = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate());
+    let aniver = new Date(agora.getFullYear(), mes-1, dia);
+    if(aniver.getTime() < hojeZ.getTime()) {
+      aniver = new Date(agora.getFullYear()+1, mes-1, dia);
+    }
+    const diff = Math.round((aniver.getTime() - hojeZ.getTime()) / (1000*60*60*24));
+    return diff;
+  } catch(e) { return null; }
 }
 
 function diasEntre(dataISO1, dataISO2) {
@@ -1460,13 +1466,17 @@ function renderClientes() {
     const stLabel = st==='pago'?'✅ Quitado':st==='parcial'?'⚠️ Parcial':'🔴 Em Aberto';
     return `<div class="cli-card" onclick="abrirDetalheCliente(${cli.id})" style="cursor:pointer">
       <div style="display:flex;justify-content:space-between;align-items:flex-start">
-        <div>
-          <div class="cli-nome">${cli.nome}</div>
-          <div class="cli-info">${cli.tel || 'Sem telefone'} · ${cli.compras ? cli.compras.length : 0} compra(s)</div>
+        <div style="flex:1;min-width:0">
+          <div class="cli-nome">${cli.nome}${cli.nasc && diasAteAniver(cli.nasc)===0 ? ' 🎂' : ''}</div>
+          <div class="cli-info" style="display:flex;flex-direction:column;gap:2px;margin-top:4px">
+            <span>${cli.tel ? '📞 '+cli.tel : 'Sem telefone'} · 🛍️ ${cli.compras ? cli.compras.length : 0} compra(s)</span>
+            ${cli.nasc ? `<span>🎂 ${cli.nasc.split('-').reverse().join('/')}${cli.nasc && diasAteAniver(cli.nasc)===0 ? ' — <b style="color:#d97706">Aniversário hoje! 🎉</b>' : cli.nasc && diasAteAniver(cli.nasc)<=7 && diasAteAniver(cli.nasc)>0 ? ' — em '+diasAteAniver(cli.nasc)+' dia(s)' : ''}</span>` : ''}
+            ${cli.end ? `<span>📍 ${cli.end}</span>` : ''}
+          </div>
         </div>
-        <span class="badge-cli ${st}">${stLabel}</span>
+        <span class="badge-cli ${st}" style="flex-shrink:0;margin-left:8px">${stLabel}</span>
       </div>
-      ${devido > 0 ? `<div style="margin-top:8px;font-size:15px;font-weight:900;color:#c0392b">Deve: ${R(devido)}</div>` : ''}
+      ${devido > 0 ? `<div style="margin-top:8px;font-size:15px;font-weight:900;color:#c0392b">💰 Deve: ${R(devido)}</div>` : ''}
     </div>`;
   }).join('');
 }
