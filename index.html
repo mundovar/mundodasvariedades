@@ -163,6 +163,22 @@
   .carrinho-item .qty-ctrl button { background: #ede9f6; }
   .carrinho-vazio { text-align: center; padding: 30px 20px; color: var(--subtexto); font-size: 13px; background: #fff; border-radius: 14px; border: 1.5px dashed var(--borda); }
   .busca-vazia { padding: 14px 16px; color: var(--subtexto); font-size: 13px; text-align: center; }
+  /* NOTIFICAÇÕES */
+  .notif-btn { position: relative; background: none; border: none; cursor: pointer; padding: 6px; font-size: 22px; flex-shrink: 0; }
+  .notif-badge { position: absolute; top: 0; right: 0; background: #ef4444; color: #fff; font-size: 10px; font-weight: 800; width: 18px; height: 18px; border-radius: 50%; display: flex; align-items: center; justify-content: center; border: 2px solid var(--azul, #5b00d6); }
+  .notif-panel { display: none; position: fixed; top: 68px; right: 8px; width: 320px; max-width: calc(100vw - 16px); background: #fff; border-radius: 16px; box-shadow: 0 8px 32px rgba(0,0,0,0.18); z-index: 300; max-height: 480px; overflow-y: auto; border: 1px solid var(--borda); }
+  .notif-panel.aberto { display: block; }
+  .notif-header { padding: 14px 16px 10px; font-size: 14px; font-weight: 800; color: var(--roxo); border-bottom: 1px solid var(--borda); display: flex; justify-content: space-between; align-items: center; }
+  .notif-item { padding: 12px 16px; border-bottom: 1px solid var(--borda); display: flex; gap: 10px; align-items: flex-start; }
+  .notif-item:last-child { border-bottom: none; }
+  .notif-item .n-ico { font-size: 22px; flex-shrink: 0; margin-top: 1px; }
+  .notif-item .n-txt { font-size: 13px; font-weight: 600; color: var(--texto); line-height: 1.4; }
+  .notif-item .n-sub { font-size: 11px; color: var(--subtexto); margin-top: 2px; }
+  .notif-item.aniver { background: #fffbeb; }
+  .notif-item.estoque { background: #fef2f2; }
+  .notif-item.parcela { background: #f0fdf4; }
+  .notif-vazio { padding: 24px 16px; text-align: center; color: var(--subtexto); font-size: 13px; }
+
   /* LOGIN */
   .login-overlay { position: fixed; inset: 0; background: #3d007a; z-index: 1000; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 24px; }
   .login-overlay.hide { display: none; }
@@ -225,8 +241,23 @@
       <p>Aqui o que você quer, você encontra</p>
     </div>
   </div>
-  <div class="sync-badge" id="sync-badge">⏳</div>
+  <div style="display:flex;align-items:center;gap:8px">
+    <button class="notif-btn" onclick="toggleNotif()" id="notif-btn">
+      🔔
+      <span class="notif-badge" id="notif-badge" style="display:none">0</span>
+    </button>
+    <div class="sync-badge" id="sync-badge">⏳</div>
+  </div>
 </header>
+
+<!-- PAINEL NOTIFICAÇÕES -->
+<div class="notif-panel" id="notif-panel">
+  <div class="notif-header">
+    <span>🔔 Notificações</span>
+    <button onclick="toggleNotif()" style="background:none;border:none;font-size:18px;cursor:pointer;color:var(--subtexto)">✕</button>
+  </div>
+  <div id="notif-lista"></div>
+</div>
 
 <nav>
   <button class="ativo" onclick="trocarAba('resumo', this)"><span class="ico">📊</span>Resumo</button>
@@ -402,6 +433,7 @@
     <div class="campo"><label>Nome do Cliente</label><input type="text" id="cli-nome" placeholder="Ex: João Silva"></div>
     <div class="campo"><label>Telefone (opcional)</label><input type="tel" id="cli-tel" placeholder="(88) 99999-9999"></div>
     <div class="campo"><label>Endereço (opcional)</label><input type="text" id="cli-end" placeholder="Ex: Rua das Flores, 123"></div>
+    <div class="campo"><label>🎂 Data de Nascimento (opcional)</label><input type="date" id="cli-nasc"></div>
     <button class="btn btn-roxo" onclick="salvarCliente()" style="margin-bottom:10px">💾 Salvar Cliente</button>
     <button class="btn btn-cinza" id="btn-excluir-cli" onclick="excluirCliente()" style="display:none">🗑️ Excluir Cliente</button>
   </div>
@@ -523,9 +555,11 @@ async function salvarDados() {
     });
     localStorage.setItem('mdv-backup', JSON.stringify(dados));
     setSyncBadge('ok', '☁️ Salvo');
+    atualizarBadgeNotif();
   } catch {
     localStorage.setItem('mdv-backup', JSON.stringify(dados));
     setSyncBadge('erro', '⚠️ Salvo local');
+    atualizarBadgeNotif();
   }
 }
 
@@ -536,10 +570,108 @@ function setSyncBadge(tipo, txt) {
   b.textContent = txt; b.className = 'sync-badge ' + tipo;
 }
 
+// ── NOTIFICAÇÕES ──────────────────────────────────────────────────────────
+function gerarNotificacoes() {
+  const notifs = [];
+  const hoje = new Date();
+  const hojeMD = String(hoje.getMonth()+1).padStart(2,'0') + '-' + String(hoje.getDate()).padStart(2,'0');
+
+  // 🎂 Aniversários
+  (dados.clientes||[]).forEach(cli => {
+    if(!cli.nasc) return;
+    const [ano, mes, dia] = cli.nasc.split('-');
+    const nascMD = mes + '-' + dia;
+    const diffDias = diasAteAniver(cli.nasc);
+    if(diffDias === 0) {
+      notifs.push({ tipo:'aniver', ico:'🎂', txt: `Hoje é aniversário de ${cli.nome}!`, sub: 'Que tal mandar uma mensagem especial? 🎉', prioridade: 1 });
+    } else if(diffDias <= 3 && diffDias > 0) {
+      notifs.push({ tipo:'aniver', ico:'🎁', txt: `${cli.nome} faz aniversário em ${diffDias} dia(s)`, sub: nascMD.split('-').reverse().join('/'), prioridade: 2 });
+    }
+  });
+
+  // 📦 Estoque baixo
+  dados.produtos.filter(p => p.estoque <= p.min).forEach(p => {
+    notifs.push({ tipo:'estoque', ico: p.estoque===0?'❌':'⚠️', txt: p.estoque===0 ? `${p.nome} está ZERADO!` : `${p.nome} com estoque baixo`, sub: `${p.estoque} unidades restantes (mínimo: ${p.min})`, prioridade: p.estoque===0?1:3 });
+  });
+
+  // 💰 Parcelas vencidas/vencendo hoje
+  (dados.clientes||[]).forEach(cli => {
+    (cli.compras||[]).forEach(compra => {
+      compra.parcelas.filter(p => !p.paga).forEach(p => {
+        const diffDias = diasEntre(hojeISO(), p.data);
+        if(diffDias < 0) {
+          notifs.push({ tipo:'parcela', ico:'🔴', txt: `${cli.nome} — parcela ${p.num}/${compra.numParcelas} em atraso`, sub: `Venceu em ${formatarData(p.data)} · ${R(p.valor)}`, prioridade: 1 });
+        } else if(diffDias === 0) {
+          notifs.push({ tipo:'parcela', ico:'💰', txt: `${cli.nome} — parcela vence HOJE!`, sub: `Parcela ${p.num}/${compra.numParcelas} · ${R(p.valor)}`, prioridade: 1 });
+        } else if(diffDias <= 3) {
+          notifs.push({ tipo:'parcela', ico:'📅', txt: `${cli.nome} — parcela vence em ${diffDias} dia(s)`, sub: `Parcela ${p.num}/${compra.numParcelas} · ${R(p.valor)}`, prioridade: 2 });
+        }
+      });
+    });
+  });
+
+  return notifs.sort((a,b) => a.prioridade - b.prioridade);
+}
+
+function diasAteAniver(nasc) {
+  const hoje = new Date();
+  const [ano, mes, dia] = nasc.split('-').map(Number);
+  let aniver = new Date(hoje.getFullYear(), mes-1, dia);
+  if(aniver < hoje) aniver = new Date(hoje.getFullYear()+1, mes-1, dia);
+  const diff = Math.round((aniver - hoje) / (1000*60*60*24));
+  return diff;
+}
+
+function diasEntre(dataISO1, dataISO2) {
+  const d1 = new Date(dataISO1 + 'T12:00:00');
+  const d2 = new Date(dataISO2 + 'T12:00:00');
+  return Math.round((d2 - d1) / (1000*60*60*24));
+}
+
+function atualizarBadgeNotif() {
+  const notifs = gerarNotificacoes();
+  const badge = document.getElementById('notif-badge');
+  if(notifs.length > 0) {
+    badge.textContent = notifs.length > 9 ? '9+' : notifs.length;
+    badge.style.display = 'flex';
+  } else {
+    badge.style.display = 'none';
+  }
+}
+
+function toggleNotif() {
+  const panel = document.getElementById('notif-panel');
+  const aberto = panel.classList.contains('aberto');
+  if(!aberto) {
+    renderNotif();
+    panel.classList.add('aberto');
+  } else {
+    panel.classList.remove('aberto');
+  }
+}
+
+function renderNotif() {
+  const notifs = gerarNotificacoes();
+  const cont = document.getElementById('notif-lista');
+  if(notifs.length === 0) {
+    cont.innerHTML = '<div class="notif-vazio">✅ Nenhuma notificação no momento!</div>';
+    return;
+  }
+  cont.innerHTML = notifs.map(n => `
+    <div class="notif-item ${n.tipo}">
+      <div class="n-ico">${n.ico}</div>
+      <div>
+        <div class="n-txt">${n.txt}</div>
+        <div class="n-sub">${n.sub}</div>
+      </div>
+    </div>`).join('');
+}
+
 async function init() {
   await carregarDados();
   document.getElementById('loading').style.display = 'none';
   renderResumo();
+  atualizarBadgeNotif();
 }
 
 function produtosIniciais() {
@@ -1168,7 +1300,7 @@ function gerarParcelasCliente(valor, numParcelas, tipo, dataInicio) {
 function abrirNovoCliente() {
   document.getElementById('modal-cliente-titulo').textContent = 'Novo Cliente';
   document.getElementById('cli-id').value = '';
-  ['cli-nome','cli-tel','cli-end'].forEach(id => document.getElementById(id).value = '');
+  ['cli-nome','cli-tel','cli-end','cli-nasc'].forEach(id => document.getElementById(id).value = '');
   document.getElementById('btn-excluir-cli').style.display = 'none';
   abrirModal('modal-cliente');
 }
@@ -1253,14 +1385,16 @@ async function salvarCliente() {
   if(!nome) { alert('Digite o nome do cliente!'); return; }
   if(!dados.clientes) dados.clientes = [];
   const id = document.getElementById('cli-id').value;
+  const nasc = document.getElementById('cli-nasc').value;
   if(id) {
     const idx = dados.clientes.findIndex(c => c.id == id);
     dados.clientes[idx].nome = nome;
     dados.clientes[idx].tel  = tel;
     dados.clientes[idx].end  = end;
+    dados.clientes[idx].nasc = nasc;
     toast('✅ Cliente atualizado!');
   } else {
-    dados.clientes.push({ id: dados.nextId++, nome, tel, end, compras: [] });
+    dados.clientes.push({ id: dados.nextId++, nome, tel, end, nasc, compras: [] });
     toast('✅ Cliente cadastrado!');
   }
   await salvarDados();
@@ -1393,6 +1527,7 @@ function editarCliente(id) {
   document.getElementById('cli-nome').value = cli.nome;
   document.getElementById('cli-tel').value = cli.tel || '';
   document.getElementById('cli-end').value  = cli.end  || '';
+  document.getElementById('cli-nasc').value = cli.nasc || '';
   document.getElementById('btn-excluir-cli').style.display = 'block';
   abrirModal('modal-cliente');
 }
@@ -1444,6 +1579,11 @@ function formatarData(iso) {
 
 document.querySelectorAll('.modal-overlay').forEach(o=>{o.addEventListener('click',e=>{if(e.target===o)o.classList.remove('aberto');});});
 document.addEventListener('click', e=>{
+  const notifPanel = document.getElementById('notif-panel');
+  const notifBtn   = document.getElementById('notif-btn');
+  if(notifPanel && notifBtn && !notifPanel.contains(e.target) && !notifBtn.contains(e.target)){
+    notifPanel.classList.remove('aberto');
+  }
   const busca = document.getElementById('busca-produto');
   const res = document.getElementById('busca-resultados');
   if(res && busca && !busca.contains(e.target) && !res.contains(e.target)){
