@@ -927,9 +927,51 @@ async function confirmarVenda(){
   renderVender();
 }
 function renderHistorico(){
-  const cont=document.getElementById('lista-historico');
-  if(dados.vendas.length===0){cont.innerHTML='<div class="empty"><div class="ico">📋</div>Nenhuma venda ainda</div>';return;}
-  cont.innerHTML=[...dados.vendas].reverse().map(v=>`<div class="venda-hist"><div><div style="font-size:13px;font-weight:700;">${v.itens.map(i=>i.qty+'x '+i.nome).join(', ')}</div><div style="font-size:11px;color:var(--subtexto)">${v.dataFmt}</div></div><div style="text-align:right"><div style="font-size:14px;font-weight:800;color:var(--roxo)">${R(v.total)}</div><div style="font-size:12px;color:var(--verde2);font-weight:700">lucro ${R(v.lucro)}</div></div></div>`).join('');
+  const cont = document.getElementById('lista-historico');
+  if(dados.vendas.length === 0){
+    cont.innerHTML = '<div class="empty"><div class="ico">📋</div>Nenhuma venda ainda</div>';
+    return;
+  }
+  cont.innerHTML = [...dados.vendas].reverse().map(v => {
+    const cancelada = v.cancelada;
+    const aPrazo = v.aPrazo;
+    return `<div class="venda-hist" style="${cancelada ? 'opacity:0.5;background:#fef2f2;' : ''}">
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px;font-weight:700;${cancelada?'text-decoration:line-through;color:#999':''}">${v.itens.map(i=>i.qty+'x '+i.nome).join(', ')}</div>
+        <div style="font-size:11px;color:var(--subtexto);margin-top:2px">
+          ${v.dataFmt}
+          ${aPrazo ? '<span style="background:#f3e8ff;color:var(--roxo);font-weight:700;padding:1px 7px;border-radius:10px;margin-left:4px;font-size:10px">📅 A Prazo</span>' : ''}
+          ${cancelada ? '<span style="background:#fdecea;color:#c0392b;font-weight:700;padding:1px 7px;border-radius:10px;margin-left:4px;font-size:10px">❌ Cancelada</span>' : ''}
+        </div>
+      </div>
+      <div style="text-align:right;flex-shrink:0;margin-left:10px">
+        <div style="font-size:14px;font-weight:800;color:${cancelada?'#999':'var(--roxo)'}">${R(v.total)}</div>
+        <div style="font-size:12px;color:${cancelada?'#999':'var(--verde2)'};font-weight:700">lucro ${R(v.lucro)}</div>
+        ${!cancelada && !aPrazo ? `<button onclick="cancelarVenda('${v.id}')" style="margin-top:6px;background:#fdecea;color:#c0392b;border:none;border-radius:8px;padding:5px 10px;font-size:11px;font-weight:700;cursor:pointer">↩️ Cancelar</button>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function cancelarVenda(id) {
+  const venda = dados.vendas.find(v => v.id == id);
+  if(!venda) return;
+  if(!confirm('Cancelar esta venda e devolver os produtos ao estoque?')) return;
+
+  // Devolver ao estoque
+  venda.itens.forEach(item => {
+    const idx = dados.produtos.findIndex(p => p.id === item.id);
+    if(idx >= 0) dados.produtos[idx].estoque += item.qty;
+  });
+
+  // Marcar como cancelada (não remove, apenas marca)
+  venda.cancelada = true;
+  venda.dataCancelamento = hojeISO();
+
+  await salvarDados();
+  renderHistorico();
+  renderResumo();
+  toast('↩️ Venda cancelada! Produtos devolvidos ao estoque.');
 }
 // ── LOGIN ──────────────────────────────────────────────────────────────────
 const SENHA_CORRETA = 'mundo2026'; // Senha padrão — pode trocar aqui
