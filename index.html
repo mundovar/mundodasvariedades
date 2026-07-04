@@ -676,6 +676,8 @@ async function init() {
   await carregarDados();
   document.getElementById('loading').style.display = 'none';
   renderResumo();
+  renderEstoque();
+  renderClientes();
   atualizarBadgeNotif();
 }
 
@@ -1418,12 +1420,13 @@ async function excluirCliente() {
 }
 
 function statusCliente(cli) {
-  if(!cli.compras || cli.compras.length === 0) return 'pago';
+  if(!cli.compras || cli.compras.length === 0) return 'sem_compras';
   let totalDevido = 0, totalPago = 0;
   cli.compras.forEach(c => c.parcelas.forEach(p => {
     totalDevido += p.valor;
     if(p.paga) totalPago += p.valor;
   }));
+  if(totalDevido === 0) return 'sem_compras';
   if(totalPago >= totalDevido) return 'pago';
   if(totalPago > 0) return 'parcial';
   return 'aberto';
@@ -1444,7 +1447,7 @@ function filtrarClientes(filtro, el) {
 function renderClientes() {
   if(!dados.clientes) dados.clientes = [];
   const total = dados.clientes.length;
-  const aberto = dados.clientes.filter(c => statusCliente(c) !== 'pago').length;
+  const aberto = dados.clientes.filter(c => statusCliente(c) === 'aberto' || statusCliente(c) === 'parcial').length;
   const receber = dados.clientes.reduce((a, c) => a + totalDevidoCliente(c), 0);
   document.getElementById('cl-total').textContent = total;
   document.getElementById('cl-aberto').textContent = aberto;
@@ -1452,7 +1455,7 @@ function renderClientes() {
   atualizarBadgeNotif();
 
   let lista = dados.clientes;
-  if(cliFiltro === 'aberto') lista = lista.filter(c => statusCliente(c) !== 'pago');
+  if(cliFiltro === 'aberto') lista = lista.filter(c => statusCliente(c) === 'aberto' || statusCliente(c) === 'parcial');
   if(cliFiltro === 'pago')   lista = lista.filter(c => statusCliente(c) === 'pago');
 
   const cont = document.getElementById('lista-clientes');
@@ -1461,23 +1464,35 @@ function renderClientes() {
     return;
   }
   cont.innerHTML = lista.map(cli => {
-    const st = statusCliente(cli);
-    const devido = totalDevidoCliente(cli);
-    const stLabel = st==='pago'?'✅ Quitado':st==='parcial'?'⚠️ Parcial':'🔴 Em Aberto';
-    return `<div class="cli-card" onclick="abrirDetalheCliente(${cli.id})" style="cursor:pointer">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start">
-        <div style="flex:1;min-width:0">
-          <div class="cli-nome">${cli.nome}${cli.nasc && diasAteAniver(cli.nasc)===0 ? ' 🎂' : ''}</div>
-          <div class="cli-info" style="display:flex;flex-direction:column;gap:2px;margin-top:4px">
-            <span>${cli.tel ? '📞 '+cli.tel : 'Sem telefone'} · 🛍️ ${cli.compras ? cli.compras.length : 0} compra(s)</span>
-            ${cli.nasc ? `<span>🎂 ${cli.nasc.split('-').reverse().join('/')}${cli.nasc && diasAteAniver(cli.nasc)===0 ? ' — <b style="color:#d97706">Aniversário hoje! 🎉</b>' : cli.nasc && diasAteAniver(cli.nasc)<=7 && diasAteAniver(cli.nasc)>0 ? ' — em '+diasAteAniver(cli.nasc)+' dia(s)' : ''}</span>` : ''}
-            ${cli.end ? `<span>📍 ${cli.end}</span>` : ''}
-          </div>
-        </div>
-        <span class="badge-cli ${st}" style="flex-shrink:0;margin-left:8px">${stLabel}</span>
-      </div>
-      ${devido > 0 ? `<div style="margin-top:8px;font-size:15px;font-weight:900;color:#c0392b">💰 Deve: ${R(devido)}</div>` : ''}
-    </div>`;
+    try {
+      const st = statusCliente(cli);
+      const devido = totalDevidoCliente(cli);
+      const stLabel = st==='pago'?'✅ Quitado':st==='parcial'?'⚠️ Parcial':st==='sem_compras'?'📋 Sem compras':'🔴 Em Aberto';
+      const diffAniver = cli.nasc ? diasAteAniver(cli.nasc) : null;
+      const ehAnivHoje = diffAniver === 0;
+      const nascFmt = cli.nasc ? cli.nasc.split('-').reverse().join('/') : '';
+      let aniverInfo = '';
+      if(cli.nasc && diffAniver !== null) {
+        if(diffAniver === 0) aniverInfo = ' — Aniversário hoje! 🎉';
+        else if(diffAniver <= 7 && diffAniver > 0) aniverInfo = ' — em '+diffAniver+' dia(s)';
+      }
+      let card = '<div class="cli-card" onclick="abrirDetalheCliente('+cli.id+')" style="cursor:pointer'+(ehAnivHoje?';border:2px solid #f59e0b;background:#fffbeb':'')+'">';
+      card += '<div style="display:flex;justify-content:space-between;align-items:flex-start">';
+      card += '<div style="flex:1;min-width:0">';
+      card += '<div class="cli-nome">'+cli.nome+(ehAnivHoje?' 🎂':'')+'</div>';
+      card += '<div class="cli-info" style="display:flex;flex-direction:column;gap:3px;margin-top:5px">';
+      card += '<span>'+(cli.tel ? '📞 '+cli.tel : 'Sem telefone')+' · 🛍️ '+(cli.compras?cli.compras.length:0)+' compra(s)</span>';
+      if(nascFmt) card += '<span>🎂 '+nascFmt+(aniverInfo?'<b style="color:#d97706">'+aniverInfo+'</b>':'')+'</span>';
+      if(cli.end) card += '<span>📍 '+cli.end+'</span>';
+      card += '</div></div>';
+      card += '<span class="badge-cli '+st+'" style="flex-shrink:0;margin-left:8px">'+stLabel+'</span>';
+      card += '</div>';
+      if(devido > 0) card += '<div style="margin-top:8px;font-size:15px;font-weight:900;color:#c0392b">💰 Deve: '+R(devido)+'</div>';
+      card += '</div>';
+      return card;
+    } catch(e) {
+      return '<div class="cli-card"><div class="cli-nome">'+cli.nome+'</div></div>';
+    }
   }).join('');
 }
 
@@ -1485,7 +1500,7 @@ function abrirDetalheCliente(id) {
   const cli = dados.clientes.find(c => c.id === id);
   if(!cli) return;
   const st = statusCliente(cli);
-  const stLabel = st==='pago'?'✅ Quitado':st==='parcial'?'⚠️ Parcial':'🔴 Em Aberto';
+  const stLabel = st==='pago'?'✅ Quitado':st==='parcial'?'⚠️ Parcial':st==='sem_compras'?'📋 Sem compras':'🔴 Em Aberto';
   let html = `
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
       <h2 style="color:var(--roxo)">${cli.nome}</h2>
