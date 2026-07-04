@@ -40,8 +40,8 @@
   .card.roxo .valor { color: var(--roxo); }
   .card.laranja .valor { color: #d97706; }
   .card-full { grid-column: 1/-1; background: linear-gradient(135deg,#5b00d6,#7c3aed); border: none; }
-  .card-full .label { color: rgba(255,255,255,0.7); }
-  .card-full .valor { color: var(--verde); }
+  .card-full .label { color: rgba(255,255,255,0.85); }
+  .card-full .valor { color: #ffffff; }
 
   .lista { display: flex; flex-direction: column; gap: 10px; }
   .item-card { background: #fff; border-radius: 14px; padding: 14px 16px; box-shadow: 0 1px 6px rgba(98,0,234,0.07); border: 1px solid var(--borda); display: flex; justify-content: space-between; align-items: flex-start; }
@@ -370,7 +370,7 @@
   <div class="cards" style="margin-bottom:14px">
     <div class="card roxo"><div class="label">👥 Clientes</div><div class="valor" id="cl-total">0</div></div>
     <div class="card" style="border:1.5px solid #fdecea"><div class="label">🔴 Em Aberto</div><div class="valor" id="cl-aberto" style="color:#c0392b">0</div></div>
-    <div class="card card-full"><div class="label">💰 Total a Receber</div><div class="valor" id="cl-receber" style="color:var(--verde2)">R$ 0,00</div></div>
+    <div class="card card-full"><div class="label">💰 Total a Receber</div><div class="valor" id="cl-receber" style="color:#ffffff">R$ 0,00</div></div>
   </div>
 
   <div style="margin-bottom:14px">
@@ -579,13 +579,12 @@ function gerarNotificacoes() {
   // 🎂 Aniversários
   (dados.clientes||[]).forEach(cli => {
     if(!cli.nasc) return;
-    const [ano, mes, dia] = cli.nasc.split('-');
-    const nascMD = mes + '-' + dia;
     const diffDias = diasAteAniver(cli.nasc);
+    if(diffDias === null) return;
     if(diffDias === 0) {
       notifs.push({ tipo:'aniver', ico:'🎂', txt: `Hoje é aniversário de ${cli.nome}!`, sub: 'Que tal mandar uma mensagem especial? 🎉', prioridade: 1 });
-    } else if(diffDias <= 3 && diffDias > 0) {
-      notifs.push({ tipo:'aniver', ico:'🎁', txt: `${cli.nome} faz aniversário em ${diffDias} dia(s)`, sub: nascMD.split('-').reverse().join('/'), prioridade: 2 });
+    } else if(diffDias > 0 && diffDias <= 7) {
+      notifs.push({ tipo:'aniver', ico:'🎁', txt: `${cli.nome} faz aniversário em ${diffDias} dia(s)`, sub: cli.nasc.split('-').reverse().join('/'), prioridade: 2 });
     }
   });
 
@@ -1444,6 +1443,7 @@ function renderClientes() {
   document.getElementById('cl-total').textContent = total;
   document.getElementById('cl-aberto').textContent = aberto;
   document.getElementById('cl-receber').textContent = R(receber);
+  atualizarBadgeNotif();
 
   let lista = dados.clientes;
   if(cliFiltro === 'aberto') lista = lista.filter(c => statusCliente(c) !== 'pago');
