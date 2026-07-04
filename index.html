@@ -482,31 +482,34 @@ let dados = { produtos: [], vendas: [], nextId: 1 };
 let catFiltro = '';
 let qtyVenda = {};
 
-const SHEETS_URL = 'https://script.google.com/macros/s/AKfycbwgMmZMTRw9ewD_q16soE0BMC4e8ftCiRZ09hw1DbLCjX-sA3dq9wImjPCHeGVvG_XJ_w/exec';
+const SUPA_URL = 'https://zwmmmhtixysizfknvxoh.supabase.co';
+const SUPA_KEY = 'sb_publishable_pndGlWiSna0MTbgzquwYgg_PVeo__BO';
+const SUPA_HEADERS = {
+  'apikey': SUPA_KEY,
+  'Authorization': 'Bearer ' + SUPA_KEY,
+  'Content-Type': 'application/json',
+  'Prefer': 'return=minimal'
+};
 
 async function carregarDados() {
   setSyncBadge('sync', '⏳ Carregando');
   try {
-    const resp = await fetch(SHEETS_URL + '?t=' + Date.now(), {
-      method: 'GET',
-      mode: 'cors',
+    const resp = await fetch(SUPA_URL + '/rest/v1/loja_dados?id=eq.principal&select=*', {
+      headers: SUPA_HEADERS
     });
-    const txt = await resp.text();
-    if(txt && txt !== '{}' && txt.trim() !== '') {
-      try {
-        const salvo = JSON.parse(txt);
-        if(salvo.produtos) dados.produtos = salvo.produtos;
-        if(salvo.vendas)   dados.vendas   = salvo.vendas;
-        if(salvo.clientes) dados.clientes = salvo.clientes;
-        if(salvo.nextId)   dados.nextId   = salvo.nextId;
-      } catch(e) {}
+    const rows = await resp.json();
+    if(rows && rows.length > 0) {
+      const row = rows[0];
+      if(row.produtos && row.produtos.length > 0) dados.produtos = row.produtos;
+      if(row.vendas)   dados.vendas   = row.vendas;
+      if(row.clientes) dados.clientes = row.clientes;
+      if(row.next_id)  dados.nextId   = row.next_id;
     }
     if(!dados.produtos || dados.produtos.length === 0) {
-      // tenta backup local primeiro
       const bkp = localStorage.getItem('mdv-backup');
       if(bkp) {
         const salvo = JSON.parse(bkp);
-        if(salvo.produtos) dados.produtos = salvo.produtos;
+        if(salvo.produtos && salvo.produtos.length > 0) dados.produtos = salvo.produtos;
         if(salvo.vendas)   dados.vendas   = salvo.vendas;
         if(salvo.clientes) dados.clientes = salvo.clientes;
         if(salvo.nextId)   dados.nextId   = salvo.nextId;
@@ -541,17 +544,18 @@ async function carregarDados() {
 async function salvarDados() {
   setSyncBadge('sync', '⏳ Salvando');
   try {
-    const payload = JSON.stringify({
+    const body = JSON.stringify({
+      id: 'principal',
       produtos: dados.produtos,
       vendas:   dados.vendas,
       clientes: dados.clientes,
-      nextId:   dados.nextId
+      next_id:  dados.nextId,
+      updated_at: new Date().toISOString()
     });
-    const resp = await fetch(SHEETS_URL, {
+    await fetch(SUPA_URL + '/rest/v1/loja_dados', {
       method: 'POST',
-      mode: 'cors',
-      body: JSON.stringify({ payload }),
-      headers: { 'Content-Type': 'text/plain' }
+      headers: { ...SUPA_HEADERS, 'Prefer': 'resolution=merge-duplicates' },
+      body
     });
     localStorage.setItem('mdv-backup', JSON.stringify(dados));
     setSyncBadge('ok', '☁️ Salvo');
