@@ -24,9 +24,10 @@
   .sync-badge.sync { background: rgba(255,220,0,0.25); }
 
   nav { display: flex; background: #fff; border-bottom: 2px solid var(--borda); position: sticky; top: 68px; z-index: 99; }
-  nav button { flex: 1; padding: 12px 4px 9px; border: none; background: none; font-size: 10px; font-weight: 700; color: var(--subtexto); cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 3px; border-bottom: 3px solid transparent; margin-bottom: -2px; text-transform: uppercase; letter-spacing: .3px; }
-  nav button span.ico { font-size: 19px; }
+  nav button { flex: 1; padding: 12px 4px 9px; border: none; background: none; font-size: 10px; font-weight: 700; color: #999; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 3px; border-bottom: 3px solid transparent; margin-bottom: -2px; text-transform: uppercase; letter-spacing: .3px; }
+  nav button span.ico { font-size: 19px; opacity: 0.5; }
   nav button.ativo { color: var(--roxo); border-bottom-color: var(--verde); }
+  nav button.ativo span.ico { opacity: 1; }
 
   .secao { display: none; padding: 16px; }
   .secao.ativo { display: block; }
@@ -411,26 +412,39 @@ const SHEETS_URL = 'https://script.google.com/macros/s/AKfycbwgMmZMTRw9ewD_q16so
 async function carregarDados() {
   setSyncBadge('sync', '⏳ Carregando');
   try {
-    const resp = await fetch(SHEETS_URL);
-    const txt  = await resp.text();
-    if(txt && txt !== '{}') {
-      const salvo = JSON.parse(txt);
-      if(salvo.produtos) dados.produtos = salvo.produtos;
-      if(salvo.vendas)   dados.vendas   = salvo.vendas;
-      if(salvo.clientes) dados.clientes = salvo.clientes;
-      if(salvo.nextId)   dados.nextId   = salvo.nextId;
+    const resp = await fetch(SHEETS_URL + '?t=' + Date.now(), {
+      method: 'GET',
+      mode: 'cors',
+    });
+    const txt = await resp.text();
+    if(txt && txt !== '{}' && txt.trim() !== '') {
+      try {
+        const salvo = JSON.parse(txt);
+        if(salvo.produtos) dados.produtos = salvo.produtos;
+        if(salvo.vendas)   dados.vendas   = salvo.vendas;
+        if(salvo.clientes) dados.clientes = salvo.clientes;
+        if(salvo.nextId)   dados.nextId   = salvo.nextId;
+      } catch(e) {}
     }
     if(!dados.produtos || dados.produtos.length === 0) {
-      dados.produtos = produtosIniciais();
-      dados.nextId   = 16;
-      await salvarDados();
+      // tenta backup local primeiro
+      const bkp = localStorage.getItem('mdv-backup');
+      if(bkp) {
+        const salvo = JSON.parse(bkp);
+        if(salvo.produtos) dados.produtos = salvo.produtos;
+        if(salvo.vendas)   dados.vendas   = salvo.vendas;
+        if(salvo.clientes) dados.clientes = salvo.clientes;
+        if(salvo.nextId)   dados.nextId   = salvo.nextId;
+      } else {
+        dados.produtos = produtosIniciais();
+        dados.nextId = 16;
+        await salvarDados();
+      }
     }
     if(!dados.clientes) dados.clientes = [];
-    // cache local como backup
     localStorage.setItem('mdv-backup', JSON.stringify(dados));
     setSyncBadge('ok', '☁️ Sincronizado');
   } catch(e) {
-    // fallback local
     setSyncBadge('erro', '⚠️ Offline');
     try {
       const bkp = localStorage.getItem('mdv-backup');
@@ -444,10 +458,7 @@ async function carregarDados() {
         dados.produtos = produtosIniciais();
         dados.nextId = 16;
       }
-    } catch {
-      dados.produtos = produtosIniciais();
-      dados.nextId = 16;
-    }
+    } catch { dados.produtos = produtosIniciais(); dados.nextId = 16; }
     if(!dados.clientes) dados.clientes = [];
   }
 }
@@ -461,15 +472,15 @@ async function salvarDados() {
       clientes: dados.clientes,
       nextId:   dados.nextId
     });
-    await fetch(SHEETS_URL, {
+    const resp = await fetch(SHEETS_URL, {
       method: 'POST',
+      mode: 'cors',
       body: JSON.stringify({ payload }),
-      headers: { 'Content-Type': 'application/json' }
+      headers: { 'Content-Type': 'text/plain' }
     });
     localStorage.setItem('mdv-backup', JSON.stringify(dados));
     setSyncBadge('ok', '☁️ Salvo');
   } catch {
-    // salva local se falhar
     localStorage.setItem('mdv-backup', JSON.stringify(dados));
     setSyncBadge('erro', '⚠️ Salvo local');
   }
