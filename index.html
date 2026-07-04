@@ -954,23 +954,29 @@ function renderHistorico(){
 }
 
 async function cancelarVenda(id) {
-  const venda = dados.vendas.find(v => v.id == id);
-  if(!venda) return;
+  // Busca por id convertendo para mesmo tipo
+  const venda = dados.vendas.find(v => String(v.id) === String(id));
+  if(!venda) { alert('Venda não encontrada!'); return; }
+  if(venda.cancelada) { alert('Esta venda já foi cancelada!'); return; }
   if(!confirm('Cancelar esta venda e devolver os produtos ao estoque?')) return;
 
-  // Devolver ao estoque
+  // Devolver ao estoque - compara id como number e string
   venda.itens.forEach(item => {
-    const idx = dados.produtos.findIndex(p => p.id === item.id);
-    if(idx >= 0) dados.produtos[idx].estoque += item.qty;
+    if(!item.id || item.id === 0) return; // ignora itens sem id de produto
+    const idx = dados.produtos.findIndex(p => String(p.id) === String(item.id));
+    if(idx >= 0) {
+      dados.produtos[idx].estoque += Number(item.qty);
+    }
   });
 
-  // Marcar como cancelada (não remove, apenas marca)
+  // Marcar como cancelada
   venda.cancelada = true;
   venda.dataCancelamento = hojeISO();
 
   await salvarDados();
   renderHistorico();
   renderResumo();
+  if(document.getElementById('estoque').classList.contains('ativo')) renderEstoque();
   toast('↩️ Venda cancelada! Produtos devolvidos ao estoque.');
 }
 // ── LOGIN ──────────────────────────────────────────────────────────────────
