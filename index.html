@@ -947,10 +947,22 @@ function renderHistorico(){
       <div style="text-align:right;flex-shrink:0;margin-left:10px">
         <div style="font-size:14px;font-weight:800;color:${cancelada?'#999':'var(--roxo)'}">${R(v.total)}</div>
         <div style="font-size:12px;color:${cancelada?'#999':'var(--verde2)'};font-weight:700">lucro ${R(v.lucro)}</div>
-        ${!cancelada && !aPrazo ? `<button onclick="cancelarVenda('${v.id}')" style="margin-top:6px;background:#fdecea;color:#c0392b;border:none;border-radius:8px;padding:5px 10px;font-size:11px;font-weight:700;cursor:pointer">↩️ Cancelar</button>` : ''}
+        <div style="display:flex;gap:6px;margin-top:6px;justify-content:flex-end">
+          ${!cancelada && !aPrazo ? `<button onclick="cancelarVenda('${v.id}')" style="background:#fdecea;color:#c0392b;border:none;border-radius:8px;padding:5px 10px;font-size:11px;font-weight:700;cursor:pointer">↩️ Cancelar</button>` : ''}
+          <button onclick="apagarVenda('${v.id}')" style="background:#f3f4f6;color:#6b7280;border:none;border-radius:8px;padding:5px 10px;font-size:11px;font-weight:700;cursor:pointer">🗑️ Apagar</button>
+        </div>
       </div>
     </div>`;
   }).join('');
+}
+
+async function apagarVenda(id) {
+  if(!confirm('Apagar este registro do histórico? O estoque NÃO será devolvido.')) return;
+  dados.vendas = dados.vendas.filter(v => String(v.id) !== String(id));
+  await salvarDados();
+  renderHistorico();
+  renderResumo();
+  toast('🗑️ Registro apagado!');
 }
 
 async function cancelarVenda(id) {
